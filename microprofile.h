@@ -1882,6 +1882,19 @@ void MicroProfileFlipGpu()
 		{
 			MP_ASSERT(!S.Pool[i]->bActiveGpu);
 
+#if MICROPROFILE_GPU_TIMERS_MULTITHREADED > 1
+			MicroProfileThreadLog* pLog = S.Pool[i];
+			if (pLog)
+			{
+				uint32_t nCount = pLog->nPutGpu.load();
+				for (uint32_t j = 0; j < nCount; ++j)
+				{
+					MicroProfileLogEntry LE = pLog->LogGpu[j];
+					MicroProfileLogPut(MicroProfileLogTimerIndex(LE), MicroProfileLogGetTick(LE), MicroProfileLogType(LE), g_MicroProfileGpuLog);
+				}
+				pLog->pContextGpu = nullptr;
+			}
+#endif
 			S.Pool[i]->nPutGpu.store(0);
 		}
 	}
@@ -2319,6 +2332,18 @@ void MicroProfileGpuSetContext(void* pContext)
 {
 	if(MicroProfileThreadLog* pLog = MicroProfileGetOrCreateThreadLog())
 	{
+#if MICROPROFILE_GPU_TIMERS_MULTITHREADED > 1
+		if (pLog->pContextGpu != pContext && pLog->pContextGpu)
+		{
+			uint32_t nCount = pLog->nPutGpu.load();
+			for (uint32_t j = 0; j < nCount; ++j)
+			{
+				MicroProfileLogEntry LE = pLog->LogGpu[j];
+				MicroProfileLogPut(MicroProfileLogTimerIndex(LE), MicroProfileLogGetTick(LE), MicroProfileLogType(LE), g_MicroProfileGpuLog);
+			}
+			pLog->nPutGpu.store(0);
+		}
+#endif
 		pLog->pContextGpu = pContext;
 	}
 }
